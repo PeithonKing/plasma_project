@@ -43,7 +43,7 @@ def crank_nicolson_solve(
     h = L / Nl
     k = T / Nt
     alpha = k*(eta**0.5) / h**2
-    print(f"alpha = {alpha}")
+    # print(f"alpha = {alpha}")
 
     u = np.zeros((Nl + 1, Nt + 1))
     u[:, 0] = u0

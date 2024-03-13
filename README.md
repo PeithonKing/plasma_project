@@ -1,6 +1,4 @@
 # Plasma Physics and Magnetohydrodynamics - Computational Project
 
-## gh
-
-![animation.gif](crank_nicolson.gif)
-
+- [Assignment 1](asgt1.ipynb)
+- 
