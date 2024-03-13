@@ -1,3 +1,6 @@
 # Plasma Physics and Magnetohydrodynamics - Computational Project
 
-... will write more some other time
+## gh
+
+![animation.gif](crank_nicolson.gif)
+

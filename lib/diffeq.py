@@ -43,6 +43,7 @@ def crank_nicolson_solve(
     h = L / Nl
     k = T / Nt
     alpha = k*(eta**0.5) / h**2
+    print(f"alpha = {alpha}")
 
     u = np.zeros((Nl + 1, Nt + 1))
     u[:, 0] = u0
@@ -72,7 +73,7 @@ def crank_nicolson_solve(
         v = B @ u[1:Nl, j-1]
         u[1:(Nl),j] = A_inv @ (v+b)
 
-    return u.T#, alpha
+    return u.T
 
 def rk4(f, x, x0, y0, h=0.01):
     """Solves a first-order ordinary differential equation (ODE) using the Runge-Kutta 4th order method.
