@@ -162,8 +162,32 @@ class Gif:
         self.fps = fps
         self.fix_limits = fix_limits
         self.save_dir = save_dir
+        self.colours = [
+            'tab:blue',
+            'tab:orange',
+        ]
+    
+    def _update(self, frame, ax, x, us, p, labels, fix_limits, skip_frame):
+        max_B = np.max(us)
+        min_B = np.min(us)
+        colours = self.colours
+        p.update(1)
+        ax.clear()
 
-    def draw(self, x, us, name, labels=None, skip_frame = None, till=None, fps=None, fix_limits=None, save_dir=None):
+        ax.plot(x, us[0, frame], colours[0], label=labels[0])
+        ax.plot(x, us[1, frame], colours[1], label=labels[1])
+        
+        ax.plot(x, us[0, 0], colours[0], label=f"Initial {labels[0]}", alpha=0.4, linestyle="--")
+        ax.plot(x, us[1, 0], colours[1], label=f"Initial {labels[1]}", alpha=0.4, linestyle="--")
+        if fix_limits:
+            plt.ylim(min_B, max_B)
+        ax.set_title(f"Magnetic Field Strength vs z Distance at Time Step {frame*skip_frame}")
+        ax.set_xlabel('Distance (z)')
+        ax.set_ylabel('Magnetic Field Strength (B)')
+        ax.legend(loc='lower right')
+        ax.grid()
+
+    def draw(self, x, us, name=None, func=None, labels=None, skip_frame = None, till=None, fps=None, fix_limits=None, save_dir=None):
         """
         Create an animated GIF of magnetic field strength vs z distance over time.
 
@@ -184,38 +208,18 @@ class Gif:
         fps = fps if fps is not None else self.fps
         fix_limits = fix_limits if fix_limits is not None else self.fix_limits
         save_dir = save_dir if save_dir is not None else self.save_dir
+        if func is None:
+            func = self._update
         
         us = us[:, :till:skip_frame, :] if till is not None else us[:, ::skip_frame, :]
-        max_B = np.max(us)
-        min_B = np.min(us)
 
-        p = tqdm(total=us.shape[1]+1)
-
-        colours = [
-            'tab:blue',
-            'tab:orange',
-            'tab:green',
-            'tab:red',
-        ]
         fig, ax = plt.subplots()
-        def update(frame):
-            p.update(1)
-            ax.clear()
-
-            ax.plot(x, us[0, frame], colours[0], label=labels[0])
-            ax.plot(x, us[1, frame], colours[1], label=labels[1])
-            
-            ax.plot(x, us[0, 0], colours[0], label=f"Initial {labels[0]}", alpha=0.4, linestyle="--")
-            ax.plot(x, us[1, 0], colours[1], label=f"Initial {labels[1]}", alpha=0.4, linestyle="--")
-            if fix_limits:
-                plt.ylim(min_B, max_B)
-            ax.set_title(f"Magnetic Field Strength vs z Distance at Time Step {frame*skip_frame}")
-            ax.set_xlabel('Distance (z)')
-            ax.set_ylabel('Magnetic Field Strength (B)')
-            ax.legend(loc='lower right')
-            ax.grid()
-
-        animation = FuncAnimation(fig, update, frames=us.shape[1], interval=int(1000/fps), repeat=False)
+        p = tqdm(total=us.shape[1]+1)
+        
+        animation = FuncAnimation(fig, func, frames=us.shape[1], interval=int(1000/fps), repeat=False, fargs=(ax, x, us, p, labels, fix_limits, skip_frame))
         writervideo = PillowWriter(fps=fps)
-        animation.save(f"{save_dir}/{name}", writer=writervideo)
+        if name is not None:
+            animation.save(f"{save_dir}/{name}", writer=writervideo)
         p.close()
+        # return animation
+
