@@ -1,4 +1,8 @@
 import numpy as np
+from tqdm import tqdm, trange
+from matplotlib.animation import FuncAnimation, PillowWriter
+from copy import deepcopy as copy
+import matplotlib.pyplot as plt
 
 
 def crank_nicolson_solve(
@@ -102,3 +106,116 @@ def rk4(f, x, x0, y0, h=0.01):
         xs.append(x0)
         ys.append(y0)
     return xs, ys, y0
+
+def solve(U, V, dt, dx, alpha0, omega, q=1, eta = 1, verbose = True):
+    assert U.shape == V.shape, "U and V must have the same shape/resolution"
+    U = -copy(U)  # copy to avoid changing the original
+    V = copy(V)  # copy to avoid changing the original
+    # if verbose: print(f"U shape: {U.shape}, V shape: {V.shape}")
+    a = 1/dt + eta/(dx**2)
+    b = eta/(2*dx**2)
+    if verbose:
+        print(f"Dynamo number = {alpha0*q*omega*1/eta**3}")
+        print(f"a: {a}, b: {b}")
+
+    A = np.zeros((U.shape[1]-2, U.shape[1]-2))
+    for row in range(A.shape[0]):
+        A[row, row] = a
+        if row > 0:
+            A[row, row-1] = -b
+        if row < A.shape[0]-1:
+            A[row, row+1] = -b
+
+    A_inv = np.linalg.inv(A)
+
+    if verbose: ra = trange
+    else: ra = range
+
+    z = np.linspace(-1, 1, U.shape[1]-1)
+
+    for j in ra(1, U.shape[0]):  # for all the time steps
+        # make B for U
+        # print(z[:-1].shape, (V[:, 1:-1] - V[:, :-2]).shape)
+        BU = (
+              U[j-1, 1:-1]*(1/dt - eta/dx**2)
+            # - alpha0*np.sign(z[:-1])*(V[j-1, 1:-1] - V[j-1, :-2])/dx
+            - alpha0*np.sin(z[:-1]*np.pi)*(V[j-1, 1:-1] - V[j-1, :-2])/dx
+            + b*(U[j-1, :-2] + U[j-1, 2:])
+        )
+        # print(BU.shape, U.shape)
+        U[j, 1:-1] = A_inv @ BU
+
+        BV = ( 
+              V[j-1, 1:-1]*(1/dt - eta/dx**2) 
+             - omega*q*U[j, 1:-1] 
+             + b*(V[j-1, :-2] + V[j-1, 2:]) 
+        )
+        V[j, 1:-1] = A_inv @ BV.T
+
+    return -U, V
+
+class Gif:
+    def __init__(self, labels=["$B_r$", "$B_\phi$"], skip_frame = 1, till=None, fps=25, fix_limits=True, save_dir="outputs/asgt2") -> None:
+        self.labels = labels
+        self.skip_frame = skip_frame
+        self.till = till
+        self.fps = fps
+        self.fix_limits = fix_limits
+        self.save_dir = save_dir
+
+    def draw(self, x, us, name, labels=None, skip_frame = None, till=None, fps=None, fix_limits=None, save_dir=None):
+        """
+        Create an animated GIF of magnetic field strength vs z distance over time.
+
+        Parameters:
+            x (array_like): Distance (z) values.
+            us (array_like): Magnetic field strength data with shape (2, t, n) where
+                2 is the number of fields, t is the number of time steps, and n is the number of distance points.
+            name (str): Name of the output GIF file.
+            labels (list of str): Labels for the two magnetic fields.
+            skip_frame (int, optional): Skip every `skip_frame` frames in the animation. Defaults to 1.
+            till (int, optional): Limit the animation to the first `till` time steps. Defaults to None.
+            fps (int, optional): Frames per second of the output GIF. Defaults to 25.
+            fix_limits (bool, optional): Whether to fix the y-axis limits throughout the animation. Defaults to True.
+        """
+        labels = labels if labels is not None else self.labels
+        skip_frame = skip_frame if skip_frame is not None else self.skip_frame
+        till = till if till is not None else self.till
+        fps = fps if fps is not None else self.fps
+        fix_limits = fix_limits if fix_limits is not None else self.fix_limits
+        save_dir = save_dir if save_dir is not None else self.save_dir
+        
+        us = us[:, :till:skip_frame, :] if till is not None else us[:, ::skip_frame, :]
+        max_B = np.max(us)
+        min_B = np.min(us)
+
+        p = tqdm(total=us.shape[1]+1)
+
+        colours = [
+            'tab:blue',
+            'tab:orange',
+            'tab:green',
+            'tab:red',
+        ]
+        fig, ax = plt.subplots()
+        def update(frame):
+            p.update(1)
+            ax.clear()
+
+            ax.plot(x, us[0, frame], colours[0], label=labels[0])
+            ax.plot(x, us[1, frame], colours[1], label=labels[1])
+            
+            ax.plot(x, us[0, 0], colours[0], label=f"Initial {labels[0]}", alpha=0.4, linestyle="--")
+            ax.plot(x, us[1, 0], colours[1], label=f"Initial {labels[1]}", alpha=0.4, linestyle="--")
+            if fix_limits:
+                plt.ylim(min_B, max_B)
+            ax.set_title(f"Magnetic Field Strength vs z Distance at Time Step {frame*skip_frame}")
+            ax.set_xlabel('Distance (z)')
+            ax.set_ylabel('Magnetic Field Strength (B)')
+            ax.legend(loc='lower right')
+            ax.grid()
+
+        animation = FuncAnimation(fig, update, frames=us.shape[1], interval=int(1000/fps), repeat=False)
+        writervideo = PillowWriter(fps=fps)
+        animation.save(f"{save_dir}/{name}", writer=writervideo)
+        p.close()
